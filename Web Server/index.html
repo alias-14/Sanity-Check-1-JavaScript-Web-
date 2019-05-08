@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Document POC</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<script src = 'WebViewer\lib\webviewer.min.js'> </script>
+<script src="WebViewer/lib/ui-legacy/external/jquery-3.2.1.min.js"></script>
+<scipt src = "config.js"> </script>
+
+
+
+<body>
+  <h1 class = 'header'>Browser-Based document viewing & collaboration solution</h1>
+
+  <div id ='changeFile' class = 'topDivs'>
+    <input type = 'url' id = 'changedURL' placeholder = "https://pdftron.s3.amazonaws.com/downloads/pl/webviewer-demo.pdf" pattern = "https://.*"
+      style = 'margin-top: 5px; margin-bottom: 5px; margin-right: 5px; margin-left: 5px;'
+    > </input>
+
+    <button onclick ="loadFromUrl()"> Load from URL </button>
+
+    <input type = 'file' id = 'changedFile'> </input>
+    <button onclick ="loadFromFile()"> Load from File </button>
+
+    <div id = 'authenticationStep'>
+      <input type = 'text' id = 'usernameAuth' placeholder="Username"> </input>
+      <input type = 'password' id = 'passwordAuth' placeholder="Password"> </input>
+      <button onclick = "authenticate()"> Authenticate to access server files </button>
+      <br>
+      <select name="localServerList" id="localServerSelect" style = 'margin-top: 7px; margin-left:auto; margin-right:auto; display:none;'>
+        <option value="" disabled selected>Select file from server</option>
+      </select>
+
+      <button onclick = "loadFromLocal()" id = 'loadlocalbutton' style = 'margin-top: 7px; margin-left:auto; margin-right:auto; display:none;'> Load File from Local Server </button>
+    </div>
+  </div>
+  <div id = 'edit buttons' class = 'topDivs'>
+    <button onclick="RemovePage()">Remove Current Page</button>
+    <button onclick="InsertPageClicked()", id = insertButton>Insert Pages</button>
+    <form id = "uploadForm" action = 'http://localhost:8080/uploadFile' enctype = "multipart/form-data" method = "POST" style = 'margin-top: 7px;'>
+      <input type="file" name="fileToUpload" id="fileToUpload" required />
+      <input type="submit" value="Upload into server" />
+    </form>
+  </div>
+
+  <div id='viewer' style='width: 1024px; height: 600px;
+                   margin-left:auto; margin-right:auto;
+                   border-style: solid;
+                   border-width: medium;'></div>
+
+
+  <script>
+  var myWebViewer;
+  var viewerElement = document.getElementById('viewer');
+  var CoreControls;
+  var time1 = new Date();
+  var time2;
+  var time2s;
+  var time1s = time1.getHours() + "." + time1.getMinutes() + "." + time1.getSeconds() + "." + time1.getMilliseconds();
+  console.log("started to load webpage at " + time1s);
+
+  $(function() {
+    myWebViewer = new PDFTron.WebViewer({
+      path: 'WebViewer/lib', // path to the PDFTron 'lib' folder on your server
+      l: 'demo:yzhou@pdftron.com:744f4a3d01f8f54d2769180c942be4c441fa8ba33f0bb9dad3',
+       initialDoc: 'https://pdftron.s3.amazonaws.com/downloads/pl/webviewer-demo.pdf',
+      // initialDoc: '/path/to/my/file.pdf',  // You can also use documents on your server
+      enableRedaction: true,
+      //fullAPI: true,
+      //useDownloader: false,
+      //ui: 'legacy',
+      pdftronServer : 'http://192.168.99.100:8090/',
+      showLocalFilePicker : false,
+      //config: 'config.js'
+    }, viewerElement);
+
+    console.log('finished initializing webviewer')
+    var viewerInstance;
+    var docViewer;
+
+    // We need to wait for the viewer to be ready before we can use any APIs
+    viewerElement.addEventListener('ready', function() {
+      viewerInstance = myWebViewer.getInstance(); // instance is ready here
+      CoreControls = viewerElement.querySelector('iframe').contentWindow.CoreControls;
+      //myWebViewer.loadDocument('Test Documents/test.pdf');
+      docViewer = viewerInstance.docViewer;
+      viewerInstance.setEngineType(viewerInstance.constants.engineTypes.PDFNETJS);
+      // viewerInstance.setHeaderItems(function(header) {
+      //   var items = header.getItems().slice(2);
+      //   header.update(items);
+      // });
+
+      //viewerInstance.disableElements(['leftPanel']);
+      // docViewer.addEventListener('documentUnloaded', function(e) {
+      //   time1 = time2;
+      //   time2 = new Date();
+      //   time2s = time2.getHours() + "." + time2.getMinutes() + "." + time2.getSeconds() + "." + time2.getMilliseconds();
+      //   console.log("unloaded document at " + time2s);
+      // });
+    } );
+
+    viewerElement.addEventListener('documentLoaded', function(e) {
+      time2 = new Date();
+      time2s = time2.getHours() + "." + time2.getMinutes() + "." + time2.getSeconds() + "." + time2.getMilliseconds();
+      console.log("loaded document at " + time2s);
+      var difference = new Date(time2 - time1);
+      console.log("total time to load = " + difference.getSeconds() + "." + difference.getMilliseconds());
+      console.error("total time to load = " + difference.getSeconds() + "." + difference.getMilliseconds());
+
+      docViewer.off('pageComplete').on('pageComplete', function(e, pageIndex) {
+        //console.log('reached');
+        //console.log(pageIndex);
+        if(pageIndex == 0) {
+          var time3 = new Date();
+          var time3s = time3.getHours() + "." + time3.getMinutes() + "." + time3.getSeconds() + "." + time3.getMilliseconds();
+          var pageDifference = new Date(time3 - time1);
+          console.log("first page loaded at " + time3s);
+          console.error("total time to load page " + (pageIndex+1) + " is " + pageDifference.getMinutes() + "." + pageDifference.getSeconds() + "." + pageDifference.getMilliseconds());
+        }
+      });
+    });
+  });
+
+    function loadFromUrl() {
+      var changedURL = document.getElementById('changedURL').value;
+      var viewerInstance = myWebViewer.getInstance();
+      if (changedURL.indexOf('https://') === 0) {
+        console.log('detected index 0');
+        viewerInstance.setEngineType(viewerInstance.constants.engineTypes.AUTO);
+        viewerInstance.loadDocument(changedURL);
+
+      } else {
+        viewerInstance.setEngineType(viewerInstance.constants.engineTypes.PDFNETJS);
+        viewerInstance.loadDocument("https://cors-anywhere.herokuapp.com/" + changedURL);
+      }
+      //viewerInstance.loadDocument(changedURL);
+      //viewerInstance.loadDocument("https://cors-anywhere.herokuapp.com/" + changedURL);
+    }
+
+    function loadFromFile() {
+      var viewerInstance = myWebViewer.getInstance();
+
+      var fileUploadInput = document.getElementById('changedFile');
+      var fileToInsert = fileUploadInput.files[0];
+      if(fileToInsert) {
+        time1 = new Date();
+        time1s = time1.getHours() + "." + time1.getMinutes() + "." + time1.getSeconds() + "." + time1.getMilliseconds();
+        console.log("unloaded document at " + time1s);
+        viewerInstance.setEngineType(viewerInstance.constants.engineTypes.PDFNETJS);
+        viewerInstance.loadDocument(fileToInsert);
+      }
+    }
+
+    function RemovePage() {
+      var docViewer = myWebViewer.getInstance().docViewer;
+      var doc = docViewer.getDocument();
+      var currPageN = docViewer.getCurrentPage();
+
+
+      //console.log(currPageN);
+      var annotManager = docViewer.getAnnotationManager();
+
+      //below is new solution
+      //removeAnnotations(currPageN, annotManager);
+
+
+      //below is old solution, may not work
+
+      var annotList = annotManager.getAnnotationsList();
+      //console.log(annotList.length)
+      var count = 0
+
+      for(var i = annotList.length-1; i >= 0 ; i--) {
+        var currAnnot = annotList[i];
+        if(currAnnot.getPageNumber() == currPageN) {
+          annotManager.deleteAnnotation(currAnnot, true, true);
+        }
+      }
+
+      //console.log(count)
+      if(docViewer.getPageCount() <= 1) {
+        docViewer.closeDocument();
+        return;
+      }
+      doc.removePages([currPageN]);
+
+      docViewer.refreshAll();
+    }
+
+    // Commented due to error in internet explorer
+
+    // async function removeAnnotations(pageNumber, manager) {
+    //
+    //   var doc = myWebViewer.getInstance().docViewer.getDocument();
+    //   var pdfDoc = await doc.getPDFDoc();
+    //
+    //
+    //   // // const itr = await pdfDoc.getPageIterator(1);
+    //   // // const page = await itr.current();
+    //   // const page = await pdfDoc.getPage(pageNumber);
+    //   // let annots = await page.getAnnots();
+    //   //
+    //   // const numAnnots = page.getNumAnnots();
+    //   //
+    //   //   for (let i = 0; i < numAnnots; ++i) {
+    //   //     const annot = await page.getAnnot(i);
+    //   //     //const annot = annots[i];
+    //   //     //annotManager.deleteAnnotation(annot, true, true);
+    //   //     console.log(outputString);
+    //   //     page.annotRemove(annot);
+    //   //   }
+    //
+    //     var bookMarkList = doc.getBookMarks();
+    //     console.log(bookMarkList.length);
+    //     for(var i = 0; i < bookMarkList.length; i++) {
+    //
+    //     }
+    // }
+
+    function InsertPageClicked() {
+      if(document.getElementById('pageStart')) {
+
+        var editBar = document.getElementById('edit buttons');
+        //editBar.querySelector('#' + 'InsertBar').remove();
+        $('#InsertBar').remove();
+        //document.getElementById('blankBar').remove();
+        //document.getElementById('uploadBar').remove();
+        return;
+      }
+      var originalButton = document.getElementById('insertButton');
+      var inputFirst = document.createElement('input');
+      inputFirst.setAttribute("name", "pageStart");
+      inputFirst.setAttribute("placeholder", "Start page #");
+      inputFirst.setAttribute("type", "number");
+      inputFirst.id = "pageStart";
+
+      var inputLast = document.createElement('input');
+      inputLast.setAttribute("name", "pageEnd");
+      inputLast.setAttribute("placeholder", "End page #");
+      inputLast.setAttribute("type", "number");
+      inputLast.id = "pageEnd";
+
+      var bar = document.getElementById('edit buttons');
+
+      // InsertBar
+      var bar2 = document.createElement('div');
+      //bar2.style.width = "1000px"
+      bar2.style.height = "70px"
+      bar2.id = "InsertBar"
+      bar2.style.margin = "10px 5px 55px 5px";
+      //bar2.className = "topDivs";
+
+      bar.appendChild(bar2);
+      bar2.appendChild(inputFirst);
+      bar2.appendChild(inputLast);
+
+      // blankBar
+      var bar4 = document.createElement("div");
+      bar4.id = "blankBar";
+      //document.body.appendChild(bar4);
+      bar2.appendChild(bar4);
+      bar4.style.padding = "0px 5px 5px 0px"
+      bar4.className = "topDivs";
+
+      // uploadBar
+      var bar3 = document.createElement("div");
+      bar3.id = "uploadBar";
+      //document.body.appendChild(bar3);
+      bar3.style.padding = "0px 5px 5px 5px";
+
+
+      var fileInsert = document.createElement('button');
+      fileInsert.style.margin = "0px 0px 0px 5px";
+      fileInsert.style.width = "145px";
+      fileInsert.style.height = "40px";
+      fileInsert.innerText = "Insert into document\n before current page"
+      fileInsert.addEventListener("click", insertPages);
+
+      var fullMerge = document.createElement('button');
+      fullMerge.style.margin = '5px 5px 5px 5px';
+      fullMerge.style.width = "150px";
+      fullMerge.style.height = "40px";
+      fullMerge.innerText = "Insert at end of document"
+      fullMerge.addEventListener("click", insertAtEnd);
+
+      var blankInsert = document.createElement('button');
+      blankInsert.style.margin = "5px 5px 5px 5px";
+      blankInsert.style.width = "140px";
+      blankInsert.style.height = "25px";
+      blankInsert.innerText = "Insert blank pages"
+      blankInsert.addEventListener("click", insertBlankPages);
+
+      var inputCurrentSize = document.createElement('button');
+      inputCurrentSize.style.margin = "5px 5px 5px 5px";
+      inputCurrentSize.style.width = "145px";
+      inputCurrentSize.style.height = "25px";
+      inputCurrentSize.innerText = "Set to current size";
+      inputCurrentSize.addEventListener("click", function() {
+        var docViewer = myWebViewer.getInstance().docViewer;
+        widthInput.value = docViewer.getPageWidth(docViewer.getCurrentPage()-1);
+        heightInput.value = docViewer.getPageHeight(docViewer.getCurrentPage()-1);
+      });
+
+      bar4.appendChild(inputCurrentSize);
+
+      var uploadFile = document.createElement('input');
+      uploadFile.type = 'file';
+      uploadFile.innerText = "Document to insert";
+      uploadFile.id = "uploadInput";
+
+      bar3.appendChild(uploadFile);
+      bar3.appendChild(fileInsert);
+      bar3.appendChild(fullMerge);
+
+      var widthInput = document.createElement('input');
+      widthInput.setAttribute("name", "widthInput");
+      widthInput.setAttribute("placeholder", "Width of Blank");
+      widthInput.setAttribute("type", "number");
+      widthInput.id = "widthInput";
+
+      var heightInput = document.createElement('input');
+      heightInput.setAttribute("name", "heightInput");
+      heightInput.setAttribute("placeholder", "Height of Blank");
+      heightInput.setAttribute("type", "number");
+      heightInput.id = "heightInput";
+
+      bar4.appendChild(widthInput);
+      bar4.appendChild(heightInput);
+      bar4.appendChild(blankInsert);
+      bar2.appendChild(bar3);
+    }
+
+    function insertPages() {
+      // const doc = myWebViewer.getInstance().docViewer.getDocument();
+      // const CoreControls = viewerElement.querySelector('iframe')
+      //   .contentWindow.CoreControls;
+      // const licenseKey = 'demo:yzhou@pdftron.com:744f4a3d01f8f54d2769180c942be4c441fa8ba33f0bb9dad3';
+      //
+      // const source = 'Test Documents/codepaste-teachingpack.pdf'
+      // let option = { l: licenseKey }
+      //
+      // const docToInsert = await CoreControls.getDocument(source, option);
+      //
+      // const pagesToInsert = [4, 5, 6];
+      // const pageIndex = doc.getPageCount() + 1;
+      //
+      // await doc.insertPages(docToInsert, pagesToInsert, pageIndex);
+      var docViewer = myWebViewer.getInstance().docViewer;
+      var doc = docViewer.getDocument();
+      var fileUploadInput = document.getElementById('uploadInput');
+      var fileList = fileUploadInput.files;
+      var fileToInsert = fileList[0];
+      var viewerInstance = myWebViewer.getInstance();
+      //viewerInstance.setEngineType(viewerInstance.constants.engineTypes.PDFNETJS);
+
+
+      //var retriever = new LocalPDFPartRetriever(fileToInsert);
+      //myWebViewer.getInstance().loadDocument(fileToInsert);
+      //var CoreControls = viewerElement.querySelector('iframe').contentWindow.CoreControls;
+
+      var startIndex = parseInt(document.getElementById("pageStart").value);
+      var endIndex = parseInt(document.getElementById("pageEnd").value);
+
+      if(isNaN(startIndex) || isNaN(endIndex)) {
+        mergeDocsHelper(fileToInsert, docViewer.getCurrentPage());
+        return;
+      }
+      insertPagesHelper(startIndex, endIndex, fileToInsert, docViewer.getCurrentPage());
+
+      // var length = endIndex - startIndex + 1;
+      // var pagesToInsert = new Array(length);
+      //
+      // for(var i = 0; i < pagesToInsert.length; ++i) {
+      //   pagesToInsert[i] = startIndex + i;
+      // }
+      //
+      // var licenseKey = 'demo:yzhou@pdftron.com:744f4a3d01f8f54d2769180c942be4c441fa8ba33f0bb9dad3';
+      // // var source = fileToInsert.name;
+      // var option = { l: licenseKey };
+      // var ext = fileToInsert.name.split('.').slice(-1)[0];
+      //
+      // CoreControls.getDefaultBackendType().then(function(backendType) {
+      //   var options = {
+      //     workerTransportPromise: CoreControls.initPDFWorkerTransports(backendType, {}, 'demo:yzhou@pdftron.com:744f4a3d01f8f54d2769180c942be4c441fa8ba33f0bb9dad3'),
+      //     extension: ext
+      //   };
+      //   var partRetriever = new CoreControls.PartRetrievers.LocalPdfPartRetriever(fileToInsert);
+      //
+      //   //doc.insertPages(docToInsert, pagesToInsert, docViewer.getCurrentPage());
+      //   docToInsert.loadAsync(partRetriever, function(err) {
+      //
+      //     if (err) {
+      //       console.error('Could not open file, please try again');
+      //       return;
+      //     }
+      //     doc.insertPages(docToInsert, pagesToInsert, docViewer.getCurrentPage());
+      //   }, options);
+      //
+      // });
+    }
+
+    function insertPagesHelper(startIndex, endIndex, fileToInsert, pageAfterIndex) {
+        var docViewer = myWebViewer.getInstance().docViewer;
+        var doc = docViewer.getDocument();
+        //var CoreControls = viewerElement.querySelector('iframe').contentWindow.CoreControls;
+
+        var length = endIndex - startIndex + 1;
+        var pagesToInsert = new Array(length);
+        var docToInsert = new CoreControls.Document(fileToInsert.name, 'pdf');
+
+        for(var i = 0; i < pagesToInsert.length; ++i) {
+          pagesToInsert[i] = startIndex + i;
+        }
+
+        var licenseKey = 'demo:yzhou@pdftron.com:744f4a3d01f8f54d2769180c942be4c441fa8ba33f0bb9dad3';
+        // var source = fileToInsert.name;
+        var option = { l: licenseKey };
+        var ext = fileToInsert.name.split('.').slice(-1)[0];
+
+        CoreControls.getDefaultBackendType().then(function(backendType) {
+          var options = {
+            workerTransportPromise: CoreControls.initPDFWorkerTransports(backendType, {}, 'demo:yzhou@pdftron.com:744f4a3d01f8f54d2769180c942be4c441fa8ba33f0bb9dad3'),
+            extension: ext
+          };
+          var partRetriever = new CoreControls.PartRetrievers.LocalPdfPartRetriever(fileToInsert);
+
+          //doc.insertPages(docToInsert, pagesToInsert, docViewer.getCurrentPage());
+          docToInsert.loadAsync(partRetriever, function(err) {
+
+            if (err) {
+              console.error('Could not open file, please try again');
+              return;
+            }
+            doc.insertPages(docToInsert, pagesToInsert, pageAfterIndex);
+          }, options);
+
+        });
+    }
+
+    function insertBlankPages() {
+      var docViewer = myWebViewer.getInstance().docViewer;
+      var doc = docViewer.getDocument();
+      var startIndex = parseInt(document.getElementById("pageStart").value);
+      var endIndex = parseInt(document.getElementById("pageEnd").value);
+      var width = parseInt(document.getElementById("widthInput").value);
+      var height = parseInt(document.getElementById("heightInput").value);
+
+      var pagesToInsert = new Array(endIndex - startIndex + 1);
+      for(var i = 0; i < pagesToInsert.length; i++) {
+        // pagesToInsert[i] = startIndex + i;
+        pagesToInsert[i] = startIndex;
+      }
+
+      doc.insertBlankPages(pagesToInsert, width, height);
+    }
+
+    function insertAtEnd() {
+      var docViewer = myWebViewer.getInstance().docViewer;
+      var doc = docViewer.getDocument();
+
+      var fileUploadInput = document.getElementById('uploadInput');
+      var fileList = fileUploadInput.files;
+      var fileToInsert = fileList[0];
+
+      var startIndex = parseInt(document.getElementById("pageStart").value);
+      var endIndex = parseInt(document.getElementById("pageEnd").value);
+
+      if(!isNaN(startIndex) && !isNaN(endIndex)) {
+        insertPagesHelper(startIndex, endIndex, fileToInsert, docViewer.getPageCount()+1);
+        return;
+      }
+
+      mergeDocsHelper(fileToInsert, doc.numPages+1)
+    }
+
+    function mergeDocsHelper(fileToInsert, pageBefore) {
+      var docViewer = myWebViewer.getInstance().docViewer;
+      var doc = docViewer.getDocument();
+
+      var CoreControls = viewerElement.querySelector('iframe').contentWindow.CoreControls;
+
+      var docToInsert = new CoreControls.Document(fileToInsert.name, 'pdf');
+
+      var licenseKey = 'demo:yzhou@pdftron.com:744f4a3d01f8f54d2769180c942be4c441fa8ba33f0bb9dad3';
+      // var source = fileToInsert.name;
+      var option = { l: licenseKey };
+      var ext = fileToInsert.name.split('.').slice(-1)[0];
+
+      CoreControls.getDefaultBackendType().then(function(backendType) {
+        var options = {
+          workerTransportPromise: CoreControls.initPDFWorkerTransports(backendType, {}, 'demo:yzhou@pdftron.com:744f4a3d01f8f54d2769180c942be4c441fa8ba33f0bb9dad3'),
+          extension: ext
+        };
+        var partRetriever = new CoreControls.PartRetrievers.LocalPdfPartRetriever(fileToInsert);
+        docToInsert.loadAsync(partRetriever, function(err) {
+          if (err) {
+            console.error('Could not open file, please try again');
+            return;
+          }
+          var pagesToInsert = [];
+          for (var i = 0; i < docToInsert.numPages; i++) {
+            pagesToInsert.push(i + 1);
+          }
+
+          doc.insertPages(docToInsert, pagesToInsert, pageBefore);
+        }, options);
+
+      });
+    }
+
+    function loadFromLocal() {
+      var dropdown = document.getElementById('localServerSelect');
+      var viewerInstance = myWebViewer.getInstance();
+      var filenametoinsert = $('#localServerSelect option:selected').text();
+      var fileToInsert = "http://localhost:8080/" + filenametoinsert;
+      var user = document.getElementById('usernameAuth').value;
+      var pass = document.getElementById('passwordAuth').value;
+      var login = user + ":" + pass;
+      var base64encodedData = btoa(login);
+
+      if(fileToInsert) {
+        time1 = new Date();
+        time1s = time1.getHours() + "." + time1.getMinutes() + "." + time1.getSeconds() + "." + time1.getMilliseconds();
+        console.log("unloaded document at " + time1s);
+        //
+        // $.ajax({
+        //   url: "http://localhost:8080/download/" + filenametoinsert,
+        //
+        //   beforeSend: function (xhr) {
+        //     xhr.setRequestHeader ("Authorization", "Basic " + btoa(login));
+        //   },
+        //
+        //   success: function(data) {
+        //     viewerInstance.setEngineType(viewerInstance.constants.engineTypes.PDFNETJS);
+        //     viewerInstance.loadDocument(data);
+        //   }
+        // });
+        viewerInstance.setEngineType(viewerInstance.constants.engineTypes.PDFNETJS);
+        viewerInstance.loadDocument(fileToInsert, {
+          filename: filenametoinsert,
+          customHeaders: {
+            Authorization: 'Basic ' + base64encodedData
+          },
+          //withCredentials: true
+        });
+        //viewerInstance.loadDocument('http://localhost:8080/test.pdf');
+      }
+    }
+
+    $(document).ready(function() {
+    //refreshLocalServerDropDown();
+    setInterval(refreshLocalServerDropDown, 60000);
+    });
+
+    $('#uploadForm').submit(function(e){
+      e.preventDefault();
+      var formData = $(this).serialize();
+
+      $.ajax({
+        type: 'POST',
+        url: 'http://localhost:8080/uploadFile',
+        contentType: false,
+        data: formData,
+        success: function() {
+          console.log('finished');
+        }
+      });
+    });
+
+    function refreshLocalServerDropDown() {
+      var user = document.getElementById('usernameAuth').value;
+      var pass = document.getElementById('passwordAuth').value;
+      var login = user + ":" + pass;
+      $.ajax({
+        url: 'http://localhost:8080/getFiles',
+
+        beforeSend: function (xhr) {
+            xhr.setRequestHeader ("Authorization", "Basic " + btoa(login));
+        },
+
+        success: function(data) {
+          console.log('passed for refresh server dropdown');
+          var dropdown = document.getElementById('localServerSelect');
+          for (var i = dropdown.options.length-1; i > 0; i--) {
+            dropdown.remove(i);
+          }
+          for (var i = 0; i < data.length; i++) {
+            var fileName = data[i];
+            var option = document.createElement('option');
+            option.value = fileName;
+            option.innerHTML = fileName;
+            dropdown.appendChild(option);
+          }
+        }
+      });
+    }
+
+    function authenticate() {
+      //console.log('pressed authenticate');
+      var user = document.getElementById('usernameAuth').value;
+      var pass = document.getElementById('passwordAuth').value;
+      var login = user + ":" + pass;
+      $.ajax({
+        url: 'http://localhost:8080/getFiles',
+        beforeSend: function (xhr) {
+            xhr.setRequestHeader ("Authorization", "Basic " + btoa(login));
+            console.log('attempting to authenticate');
+        },
+        success: function(data) {
+          console.log('passed');
+          refreshLocalServerDropDown();
+          var sel = document.getElementById("localServerSelect");
+          var but = document.getElementById("loadlocalbutton");
+          if(sel.style.display == "none") {
+            sel.style.display = "inline";
+            but.style.display = "inline";
+          }
+        }
+      });
+
+    }
+  </script>
+</body>
+
+</html>
