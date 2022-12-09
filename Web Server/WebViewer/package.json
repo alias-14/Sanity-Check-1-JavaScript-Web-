@@ -11,7 +11,7 @@
     "optimize": "node scripts/optimize-for-prod.js"
   },
   "devDependencies": {
-    "express": "^4.16.3",
+    "express": "^4.17.3",
     "fs-extra": "^7.0.1",
     "ip": "^1.1.5",
     "opn": "^5.3.0",
